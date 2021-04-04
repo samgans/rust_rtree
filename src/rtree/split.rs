@@ -1,14 +1,12 @@
 use std::rc::Rc;
 
-use crate::geometries::{RtreeGeometry};
+use crate::geometries::{BoundingRectangle, RtreeGeometry};
 use crate::nodes::{ChildrenType, RtreeNode, RtreeObject};
 
 pub trait RtreeSplit {
     fn split(&mut self) -> ();
 
     fn execute(&mut self) -> (Rc<RtreeNode>, Rc<RtreeNode>);
-
-    fn update_parents<T: RtreeObject>(node: &Rc<RtreeNode>, objects: &mut Vec<T>) -> ();
 
     fn pick_seeds<T: RtreeObject>(
         &mut self,
@@ -61,5 +59,5 @@ pub trait RtreeSplit {
         &'a self,
         node_1: &'a mut Rc<RtreeNode>,
         node_2: &'a mut Rc<RtreeNode>
-    )-> Option<&'a mut Rc<RtreeNode>>;
+    ) -> Option<&'a mut Rc<RtreeNode>>;
 }

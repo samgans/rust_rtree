@@ -1,6 +1,7 @@
 use std::cmp;
 use std::fmt::{Display, Debug, Formatter};
 use std::fmt::Result as FmtResult;
+use std::rc::{Rc, Weak};
 
 use crate::{INF, NEGINF, Coordinates, Geometry};
 use crate::nodes::{RtreeNode, RtreeObject};
@@ -25,7 +26,8 @@ pub struct RtreeGeometry {
     pub id: String,
     pub coords: Geometry,
     pub mbr: BoundingRectangle,
-    pub coordtype: GeometryType
+    pub coordtype: GeometryType,
+    parent: Option<Weak<RtreeNode>>
 }
 
 impl Display for GeometryType {
@@ -166,7 +168,8 @@ impl RtreeGeometry {
             id: generate_id(),
             coords,
             mbr,
-            coordtype
+            coordtype,
+            parent: None
         }
     }
 
@@ -194,7 +197,9 @@ impl RtreeObject for RtreeGeometry {
         self.mbr = mbr
     }
 
-    fn set_parent()
+    fn set_parent(&mut self, node: &Rc<RtreeNode>) -> () {
+        self.parent = Some(Rc::downgrade(node))
+    }
 }
 
 #[cfg(test)]

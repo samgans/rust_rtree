@@ -12,11 +12,12 @@ pub trait RtreeObject {
     fn id(&self) -> &str;
     fn mbr(&self) -> &BoundingRectangle;
     fn set_mbr(&mut self, mbr: BoundingRectangle) -> ();
+    fn set_parent(&mut self, node: &Rc<RtreeNode>) -> ();
 }
 
 pub enum ChildrenType {
-    InnerNodes(Vec<RtreeNode>),
-    Leafs(Vec<RtreeGeometry>)
+    InnerNodes(Vec<Rc<RtreeNode>>),
+    Leafs(Vec<Rc<RtreeGeometry>>)
 }
 
 pub struct RtreeNode {
@@ -39,13 +40,13 @@ impl ChildrenType {
         }
     }
 
-    fn add_node(&self, object: RtreeNode) {
+    fn add_node(&self, object: Rc<RtreeNode>) {
         if let Self::InnerNodes(ref mut nodes) = self {
             nodes.push(object)
         }
     }
 
-    fn add_leaf(&self, object: RtreeGeometry) {
+    fn add_leaf(&self, object: Rc<RtreeGeometry>) {
         if let Self::Leafs(ref mut leafs) = self {
             leafs.push(object)
         };
@@ -82,15 +83,19 @@ impl RtreeNode {
         }
     }
 
-    pub fn insert(&mut self, geom: RtreeGeometry) -> () {
+    pub fn insert(&mut self, geom: Rc<RtreeGeometry>) -> () {
         match &mut self.children {
-            ChildrenType::InnerNodes(objs) => {
-                let least_enl = find_least_enlargement(objs, &geom.mbr());
+            ChildrenType::InnerNodes(ref mut objs) => {
+                let least_enl_vec: Vec<&mut Rc<RtreeNode>> = vec!();
+                for obj in objs {
+                    least_enl_vec.push(obj)
+                }
+                let least_enl = find_least_enlargement(&mut least_enl_vec, &geom.mbr());
                 let obj_to_enl = least_enl.0;
                 obj_to_enl.set_mbr(least_enl.1);
                 obj_to_enl.insert(geom);
             },
-            ChildrenType::Leafs(objs) => {
+            ChildrenType::Leafs(ref mut objs) => {
                 objs.push(geom);
             }
         }
@@ -117,13 +122,22 @@ impl RtreeSplit for RtreeNode {
         self.mbr = nodes.0.mbr;
 
         match self.children {
+            ChildrenType::InnerNodes(ref mut nodes) => {
+                let self_ptr = self as *const RtreeNode;
+                let self_rc = Weak::from_raw(self_ptr).upgrade();
 
+                if let Some(ref ptr) = self_rc {
+                    for node in nodes {
+                        node.set_parent(ptr)
+                    }
+                }
+            }
         }
     }
 
-    fn execute(&mut self) -> (RtreeNode, RtreeNode) {
-        let node_1: RtreeNode;
-        let node_2: RtreeNode;
+    fn execute(&mut self) -> (Rc<RtreeNode>, Rc<RtreeNode>) {
+        let node_1: Rc<RtreeNode>;
+        let node_2: Rc<RtreeNode>;
         match self.children {
             ChildrenType::InnerNodes(ref mut nodes) => {
                 let picked = self.pick_seeds(nodes, ChildrenType::InnerNodes);
@@ -141,15 +155,9 @@ impl RtreeSplit for RtreeNode {
         (node_1, node_2)
     }
 
-    fn update_parents<T: RtreeObject>(node: &RtreeNode, objects: &mut Vec<T>) -> () {
-        for obj in objects {
-            obj.set_parent(node)
-        }
-    }
-
-    fn pick_seeds<T: RtreeObject>(&mut self, objects: &mut Vec<T>, 
-                                  child_type: fn(Vec<T>) -> ChildrenType)
-                -> (RtreeNode, RtreeNode) {
+    fn pick_seeds<T: RtreeObject>(&mut self, objects: &mut Vec<Rc<T>>, 
+                                  child_type: fn(Vec<Rc<T>>) -> ChildrenType)
+                -> (Rc<RtreeNode>, Rc<RtreeNode>) {
         let mut max_area = NEGINF;
         let mut objs = MaybeUninit::<(usize, usize)>::uninit();
         
@@ -190,14 +198,14 @@ impl RtreeSplit for RtreeNode {
         node_1.children = child_type(vec!(obj_1));
         node_2.children = child_type(vec!(obj_2));
 
-        (node_1, node_2)
+        (Rc::new(node_1), Rc::new(node_2))
     }
 
     fn distribute_nodes(
         &self,
-        node_1: &mut RtreeNode,
-        node_2: &mut RtreeNode,
-        objects: &mut Vec<RtreeNode>
+        node_1: &mut Rc<RtreeNode>,
+        node_2: &mut Rc<RtreeNode>,
+        objects: &mut Vec<Rc<RtreeNode>>
     ) -> () {
         for i in 0..objects.len() {
             if self.validate_nodes_quantity(node_1, node_2, objects) {
@@ -205,7 +213,7 @@ impl RtreeSplit for RtreeNode {
             } else {
                 let insert_obj = self.pick_next_node(node_1, node_2, objects);
                 let to_insert = find_least_enlargement(
-                    vec!(node_1, node_2),
+                    &mut vec!(node_1, node_2),
                     &insert_obj.mbr
                 );
                 to_insert.0.mbr = to_insert.1;
@@ -216,9 +224,9 @@ impl RtreeSplit for RtreeNode {
 
     fn distribute_leafs(
         &self,
-        node_1: &mut RtreeNode,
-        node_2: &mut RtreeNode,
-        objects: &mut Vec<RtreeGeometry>
+        node_1: &mut Rc<RtreeNode>,
+        node_2: &mut Rc<RtreeNode>,
+        objects: &mut Vec<Rc<RtreeGeometry>>
     ) -> () {
         for i in 0..objects.len() {
             if self.validate_leafs_quantity(node_1, node_2, objects) {
@@ -226,7 +234,7 @@ impl RtreeSplit for RtreeNode {
             } else {
                 let insert_obj = self.pick_next_leaf(node_1, node_2, objects);
                 let to_insert = find_least_enlargement(
-                    vec!(node_1, node_2),
+                    &mut vec!(node_1, node_2),
                     &insert_obj.mbr
                 );
                 to_insert.0.mbr = to_insert.1;
@@ -235,9 +243,9 @@ impl RtreeSplit for RtreeNode {
         }
     }
 
-    fn pick_next_node(&self, node_1: &mut RtreeNode, node_2: &mut RtreeNode,
-                          objects: &mut Vec<RtreeNode>)
-            -> RtreeNode {
+    fn pick_next_node(&self, node_1: &mut Rc<RtreeNode>, node_2: &mut Rc<RtreeNode>,
+                          objects: &mut Vec<Rc<RtreeNode>>)
+            -> Rc<RtreeNode> {
         let min_d = INF;
         let chosen: usize;
 
@@ -259,8 +267,8 @@ impl RtreeSplit for RtreeNode {
         objects.remove(chosen)
     }
 
-    fn pick_next_leaf(&self, node_1: &mut RtreeNode, node_2: &mut RtreeNode,
-                      objects: &mut Vec<RtreeGeometry>) -> RtreeGeometry {
+    fn pick_next_leaf(&self, node_1: &mut Rc<RtreeNode>, node_2: &mut Rc<RtreeNode>,
+                      objects: &mut Vec<Rc<RtreeGeometry>>) -> Rc<RtreeGeometry> {
         let min_d = INF;
         let chosen: usize;
 
@@ -282,9 +290,9 @@ impl RtreeSplit for RtreeNode {
         objects.remove(chosen)
     }
 
-    fn pick_underfull<'a>(&'a self, node_1: &'a mut RtreeNode, node_2: &'a mut RtreeNode)
-            -> Option<&'a mut RtreeNode>  {
-        let to_final_push: Option<&mut RtreeNode> = None;
+    fn pick_underfull<'a>(&'a self, node_1: &'a mut Rc<RtreeNode>, node_2: &'a mut Rc<RtreeNode>)
+            -> Option<&'a mut Rc<RtreeNode>>  {
+        let to_final_push: Option<&mut Rc<RtreeNode>> = None;
         let max_objs = node_1.max_children;
         let peak = (max_objs - max_objs / 2) + 1;
 
@@ -299,9 +307,9 @@ impl RtreeSplit for RtreeNode {
 
     fn validate_nodes_quantity(
         &self,
-        node_1: &mut RtreeNode,
-        node_2: &mut RtreeNode,
-        objects: &mut Vec<RtreeNode>
+        node_1: &mut Rc<RtreeNode>,
+        node_2: &mut Rc<RtreeNode>,
+        objects: &mut Vec<Rc<RtreeNode>>
     ) -> bool {
 
         let to_final_push = self.pick_underfull(node_1, node_2);
@@ -322,9 +330,9 @@ impl RtreeSplit for RtreeNode {
 
     fn validate_leafs_quantity(
         &self,
-        node_1: &mut RtreeNode,
-        node_2: &mut RtreeNode,
-        objects: &mut Vec<RtreeGeometry>
+        node_1: &mut Rc<RtreeNode>,
+        node_2: &mut Rc<RtreeNode>,
+        objects: &mut Vec<Rc<RtreeGeometry>>
     ) -> bool {
 
         let to_final_push = self.pick_underfull(node_1, node_2);
@@ -354,7 +362,11 @@ impl RtreeObject for RtreeNode {
         &self.mbr
     }
 
-    fn set_parent(&self, node: &RtreeNode) {
-        self.parent = WeakRef:
+    fn set_mbr(&mut self, mbr: BoundingRectangle) -> () {
+        self.mbr = mbr
+    }
+
+    fn set_parent(&mut self, node: &Rc<RtreeNode>) -> () {
+        self.parent = Some(Rc::downgrade(node));
     }
 }

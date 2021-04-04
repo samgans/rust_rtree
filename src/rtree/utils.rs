@@ -1,4 +1,5 @@
 use std::mem::MaybeUninit;
+use std::rc::Rc;
 
 use uuid::Uuid;
 
@@ -11,13 +12,13 @@ pub fn generate_id() -> String {
 }
 
 pub fn find_least_enlargement<'a>(
-    list_nodes: &'a mut Vec<RtreeNode>,
+    list_nodes: &'a mut Vec<&'a mut Rc<RtreeNode>>,
     mbr: &BoundingRectangle
-) -> (&'a mut RtreeNode, BoundingRectangle) {
+) -> (&'a mut Rc<RtreeNode>, BoundingRectangle) {
 
     let mut min_enlargement = INF;
     let mut min_mbr = MaybeUninit::<BoundingRectangle>::uninit();
-    let mut chosen_node = MaybeUninit::<&mut RtreeNode>::uninit();
+    let mut chosen_node = MaybeUninit::<&mut Rc<RtreeNode>>::uninit();
 
     for node in list_nodes {
         let node_mbr = node.mbr();
