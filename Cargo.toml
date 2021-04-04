@@ -1,0 +1,16 @@
+[package]
+name = "rtree"
+version = "0.1.0"
+authors = ["samgans <antonzhiltsov2000@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+uuid = { version = "0.8", features = ["v4"] }
+
+[[bin]]
+name = "rtree"
+path = "src/main.rs"
+
+[lib]
+name = "rtree"
+path = "src/rtree/lib.rs"
