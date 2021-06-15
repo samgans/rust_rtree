@@ -1,10 +1,11 @@
+use std::cell::RefCell;
 use std::cmp;
 use std::fmt::{Display, Debug, Formatter};
 use std::fmt::Result as FmtResult;
 use std::rc::{Rc, Weak};
 
 use crate::{INF, NEGINF, Coordinates, Geometry};
-use crate::nodes::{RtreeNode, RtreeObject};
+use crate::nodes::{RtreeNode, RtreeObject, TreeGeometry, TreeNode};
 use crate::utils::generate_id;
 
 #[derive(PartialEq, Eq)]
@@ -27,7 +28,7 @@ pub struct RtreeGeometry {
     pub coords: Geometry,
     pub mbr: BoundingRectangle,
     pub coordtype: GeometryType,
-    parent: Option<Weak<RtreeNode>>
+    parent: Option<Weak<RefCell<RtreeNode>>>
 }
 
 impl Display for GeometryType {
@@ -197,7 +198,7 @@ impl RtreeObject for RtreeGeometry {
         self.mbr = mbr
     }
 
-    fn set_parent(&mut self, node: &Rc<RtreeNode>) -> () {
+    fn set_parent(&mut self, node: &TreeNode) -> () {
         self.parent = Some(Rc::downgrade(node))
     }
 }

@@ -5,23 +5,24 @@ use uuid::Uuid;
 
 use crate::INF;
 use crate::geometries::BoundingRectangle;
-use crate::nodes::{RtreeNode, RtreeObject};
+use crate::nodes::{RtreeNode, RtreeObject, TreeGeometry, TreeNode};
 
 pub fn generate_id() -> String {
     Uuid::new_v4().to_hyphenated().to_string()
 }
 
 pub fn find_least_enlargement<'a>(
-    list_nodes: &'a mut Vec<&'a mut Rc<RtreeNode>>,
+    list_nodes: &'a mut Vec<TreeNode>,
     mbr: &BoundingRectangle
-) -> (&'a mut Rc<RtreeNode>, BoundingRectangle) {
+) -> (TreeNode, BoundingRectangle) {
 
     let mut min_enlargement = INF;
     let mut min_mbr = MaybeUninit::<BoundingRectangle>::uninit();
-    let mut chosen_node = MaybeUninit::<&mut Rc<RtreeNode>>::uninit();
+    let mut chosen_node = MaybeUninit::<TreeNode>::uninit();
 
     for node in list_nodes {
-        let node_mbr = node.mbr();
+        let node_val = node.borrow();
+        let node_mbr = node_val.mbr();
         let enlarged = BoundingRectangle::common_mbr(
             &vec!(node_mbr, mbr)
         );
@@ -31,7 +32,7 @@ pub fn find_least_enlargement<'a>(
             min_enlargement = enlargement;
             unsafe {
                 min_mbr.as_mut_ptr().write(enlarged);
-                chosen_node.as_mut_ptr().write(node);
+                chosen_node.as_mut_ptr().write((*node).clone());
             }
         }
     };
